@@ -3,170 +3,137 @@ import pandas as pd
 from datetime import datetime
 import openai
 
-st.set_page_config(page_title="RestoRH Ultimate", layout="wide")
+# Auth simulation
+USERS = {
+    "admin": {"password": "admin123", "role": "admin"},
+    "manager": {"password": "manager123", "role": "manager"},
+    "employe": {"password": "employe123", "role": "employe"}
+}
 
-# HEADER
-st.markdown("""
-<div style='text-align: center'>
-    <h1 style='color:#2E86C1;'>👨‍🍳 <b>RestoRH Ultimate</b></h1>
-    <p style='font-size:18px;'>Le copilote RH intelligent pour restaurateurs exigeants</p>
-</div>
-""", unsafe_allow_html=True)
-st.divider()
+st.set_page_config(page_title="RestoRH 🇨🇭", layout="wide")
 
-menu = st.sidebar.radio("🧭 Menu", [
-    "👥 Employés",
-    "📅 Planning",
-    "⏱️ Pointage",
-    "📊 Tableau de bord",
-    "📆 Congés",
-    "🎯 Évaluations",
-    "🧠 Assistant RH (ChatGPT)"
-])
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.role = None
 
+if not st.session_state.logged_in:
+    st.title("🔐 Connexion sécurisée")
+    user = st.text_input("Nom d'utilisateur")
+    pwd = st.text_input("Mot de passe", type="password")
+    if st.button("Connexion"):
+        if user in USERS and USERS[user]["password"] == pwd:
+            st.session_state.logged_in = True
+            st.session_state.role = USERS[user]["role"]
+            st.success(f"Bienvenue {user} 👋 (rôle : {st.session_state.role})")
+            st.experimental_rerun()
+        else:
+            st.error("Identifiants incorrects.")
+    st.stop()
+
+# Menu dynamique
+menu_options = ["📊 Tableau de bord", "👥 Employés", "📅 Planning", "📆 Congés", "⏱️ Pointage", "📘 CCNT Suisse", "🧠 Assistant IA"]
+if st.session_state.role == "admin":
+    menu_options += ["📄 Rapport PDF (bientôt)", "📣 Notifications (mock)"]
+
+menu = st.sidebar.selectbox("🧭 Menu", menu_options)
+
+# DATA STATES SIMULÉES
 if "employees" not in st.session_state:
     st.session_state.employees = []
-
 if "pointages" not in st.session_state:
     st.session_state.pointages = []
-
 if "conges" not in st.session_state:
     st.session_state.conges = []
 
-if "evaluations" not in st.session_state:
-    st.session_state.evaluations = []
+# MODULE CCNT
+if menu == "📘 CCNT Suisse":
+    st.title("📘 Convention Collective Nationale de Travail (CCNT) - Hôtellerie et Restauration")
+    st.markdown("""
+    **Extraits utiles pour les restaurateurs :**
 
-# Employés
-if menu == "👥 Employés":
-    st.subheader("Ajouter un employé")
-    with st.form("add_employee"):
-        nom = st.text_input("Nom complet")
-        role = st.selectbox("Poste", ["Serveur", "Cuisinier", "Plonge", "Manager"])
-        contrat = st.selectbox("Type de contrat", ["CDI", "CDD", "Extra"])
-        dispo = st.text_input("Disponibilités (ex: Lun-Ven)")
-        submit = st.form_submit_button("Ajouter")
-        if submit:
-            st.session_state.employees.append({
-                "Nom": nom, "Rôle": role, "Contrat": contrat, "Dispo": dispo
-            })
-            st.success(f"{nom} ajouté ✅")
-    st.divider()
-    st.subheader("Liste des employés")
-    if st.session_state.employees:
-        st.dataframe(pd.DataFrame(st.session_state.employees), use_container_width=True)
-    else:
-        st.info("Aucun employé ajouté.")
+    - 🕒 Temps de travail max : 50h / semaine  
+    - ⏸️ Temps de pause : 15 min si +5h, 30 min si +7h  
+    - 💰 Salaire minimum : dépend du poste et de l'âge  
+    - 📅 Congés : minimum 4 semaines/an  
+    - 📝 Heures supp. payées à 125% ou compensées en temps
 
-# Planning
-elif menu == "📅 Planning":
-    st.subheader("Planning Hebdomadaire")
-    jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-    planning = {}
-    for emp in st.session_state.employees:
-        emp_name = emp["Nom"]
-        planning[emp_name] = {}
-        cols = st.columns(len(jours))
-        st.markdown(f"**{emp_name}**")
-        for i, jour in enumerate(jours):
-            shift = cols[i].selectbox(f"{jour}", ["Repos", "Matin", "Soir", "Journée"], key=f"{emp_name}_{jour}")
-            planning[emp_name][jour] = shift
-    if st.button("💾 Sauvegarder le planning"):
-        st.session_state.planning = planning
-        st.success("Planning sauvegardé.")
+    **⚠️ Ces règles doivent être respectées dans les plannings.**
+    """)
+    st.info("À venir : vérification automatique de la conformité des plannings avec la CCNT.")
 
-# Pointage
-elif menu == "⏱️ Pointage":
-    st.subheader("Pointage des employés")
-    if not st.session_state.employees:
-        st.warning("Ajoutez d'abord des employés.")
-    else:
-        employe = st.selectbox("Employé", [e["Nom"] for e in st.session_state.employees])
-        action = st.radio("Action", ["Entrée", "Sortie"])
-        if st.button("📍 Enregistrer le pointage"):
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state.pointages.append({
-                "Employé": employe, "Action": action, "Heure": now
-            })
-            st.success(f"{action} enregistrée pour {employe} à {now}.")
-    st.divider()
-    st.subheader("Historique des pointages")
-    if st.session_state.pointages:
-        st.dataframe(pd.DataFrame(st.session_state.pointages), use_container_width=True)
-    else:
-        st.info("Aucun pointage enregistré.")
-
-# Tableau de bord
+# MODULE TABLEAU DE BORD
 elif menu == "📊 Tableau de bord":
-    st.subheader("Statistiques RH")
+    st.title("📊 Indicateurs RH")
     col1, col2 = st.columns(2)
     col1.metric("👥 Employés", len(st.session_state.employees))
     col2.metric("📍 Pointages", len(st.session_state.pointages))
-    st.divider()
-    if st.session_state.pointages:
-        df = pd.DataFrame(st.session_state.pointages)
-        st.download_button("⬇️ Exporter les pointages (.csv)", df.to_csv(index=False), "pointages.csv", "text/csv")
+    st.write("📆 Congés enregistrés :", len(st.session_state.conges))
 
-# Congés
+# MODULE EMPLOYÉS
+elif menu == "👥 Employés":
+    st.title("👥 Gestion des employés")
+    with st.form("add_emp"):
+        nom = st.text_input("Nom")
+        poste = st.selectbox("Poste", ["Serveur", "Cuisinier", "Plonge", "Manager"])
+        salaire = st.number_input("Salaire brut", step=100)
+        submit = st.form_submit_button("Ajouter")
+        if submit:
+            st.session_state.employees.append({"Nom": nom, "Poste": poste, "Salaire": salaire})
+            st.success("Employé ajouté.")
+    if st.session_state.employees:
+        st.dataframe(pd.DataFrame(st.session_state.employees))
+
+# MODULE PLANNING (placeholder)
+elif menu == "📅 Planning":
+    st.title("📅 Planning - à venir")
+    st.info("Le planning intelligent conforme à la CCNT arrive très bientôt.")
+
+# MODULE CONGÉS
 elif menu == "📆 Congés":
-    st.subheader("Demandes de congés")
-    employe = st.selectbox("Employé concerné", [e["Nom"] for e in st.session_state.employees])
-    date_debut = st.date_input("Date de début")
-    date_fin = st.date_input("Date de fin")
-    if st.button("📩 Demander un congé"):
-        st.session_state.conges.append({
+    st.title("📆 Demandes de congés")
+    employe = st.selectbox("Employé", [e["Nom"] for e in st.session_state.employees])
+    date = st.date_input("Date souhaitée")
+    if st.button("Demander congé"):
+        st.session_state.conges.append({"Employé": employe, "Date": date.strftime("%Y-%m-%d")})
+        st.success("Demande enregistrée.")
+
+# MODULE POINTAGE
+elif menu == "⏱️ Pointage":
+    st.title("⏱️ Pointage")
+    employe = st.selectbox("Employé à pointer", [e["Nom"] for e in st.session_state.employees])
+    action = st.radio("Action", ["Entrée", "Sortie"])
+    if st.button("Enregistrer"):
+        st.session_state.pointages.append({
             "Employé": employe,
-            "Du": date_debut.strftime("%Y-%m-%d"),
-            "Au": date_fin.strftime("%Y-%m-%d")
+            "Action": action,
+            "Heure": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
-        st.success("Demande enregistrée ✅")
-    st.divider()
-    st.subheader("Historique des congés")
-    if st.session_state.conges:
-        st.dataframe(pd.DataFrame(st.session_state.conges), use_container_width=True)
-    else:
-        st.info("Aucune demande enregistrée.")
+        st.success("Pointage enregistré.")
 
-# Évaluations
-elif menu == "🎯 Évaluations":
-    st.subheader("Évaluation des employés")
-    employe = st.selectbox("👤 Choisir un employé", [e["Nom"] for e in st.session_state.employees])
-    note = st.slider("Note générale", 1, 10, 5)
-    commentaire = st.text_area("Commentaires")
-    if st.button("✅ Enregistrer l’évaluation"):
-        st.session_state.evaluations.append({
-            "Employé": employe,
-            "Note": note,
-            "Commentaire": commentaire,
-            "Date": datetime.now().strftime("%Y-%m-%d")
-        })
-        st.success("Évaluation enregistrée")
-    st.divider()
-    st.subheader("Historique des évaluations")
-    if st.session_state.evaluations:
-        st.dataframe(pd.DataFrame(st.session_state.evaluations), use_container_width=True)
-    else:
-        st.info("Aucune évaluation disponible.")
-
-# ChatGPT
-elif menu == "🧠 Assistant RH (ChatGPT)":
-    st.subheader("🤖 Assistant RH intelligent")
-    st.markdown("Pose une question liée à ton équipe, ton planning ou tes RH 👇")
-
+# MODULE CHATGPT
+elif menu == "🧠 Assistant IA":
+    st.title("🤖 Assistant RH IA")
     openai.api_key = st.secrets["openai_api_key"] if "openai_api_key" in st.secrets else None
-
-    user_input = st.text_area("💬 Ta question :")
-    if st.button("Envoyer à ChatGPT"):
+    question = st.text_area("Pose ta question RH ou CCNT")
+    if st.button("Interroger ChatGPT"):
         if not openai.api_key:
-            st.warning("Clé API OpenAI non configurée. Va dans Streamlit Secrets.")
-        elif user_input.strip() == "":
-            st.warning("Pose une vraie question 😉")
-        else:
-            with st.spinner("Réponse de l'assistant..."):
-                response = openai.ChatCompletion.create(
+            st.warning("Clé API manquante.")
+        elif question.strip() != "":
+            with st.spinner("Réponse en cours..."):
+                rep = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "Tu es un assistant RH spécialisé pour les restaurants."},
-                        {"role": "user", "content": user_input}
+                        {"role": "system", "content": "Tu es un assistant RH spécialisé en restauration en Suisse avec connaissance de la CCNT."},
+                        {"role": "user", "content": question}
                     ]
                 )
-                st.success(response['choices'][0]['message']['content'])
+                st.success(rep.choices[0].message.content)
+
+# MODULES FUTURS
+elif menu == "📄 Rapport PDF (bientôt)":
+    st.title("📄 Génération de rapport RH PDF")
+    st.info("Fonctionnalité en cours de développement.")
+
+elif menu == "📣 Notifications (mock)":
+    st.title("📣 Notifications automatiques")
+    st.info("Notifications par email / Slack seront bientôt activables depuis cette interface.")
