@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 import openai
 
-# CONFIGURATION DE L'APP
 st.set_page_config(page_title="RestoRH Ultimate", layout="wide")
 
 # HEADER
@@ -15,23 +14,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.divider()
 
-# MENU PRINCIPAL
 menu = st.sidebar.radio("🧭 Menu", [
     "👥 Employés",
     "📅 Planning",
     "⏱️ Pointage",
     "📊 Tableau de bord",
+    "📆 Congés",
+    "🎯 Évaluations",
     "🧠 Assistant RH (ChatGPT)"
 ])
 
-# STATES INIT
 if "employees" not in st.session_state:
     st.session_state.employees = []
 
 if "pointages" not in st.session_state:
     st.session_state.pointages = []
 
-# PAGE 1 : Fiches employés
+if "conges" not in st.session_state:
+    st.session_state.conges = []
+
+if "evaluations" not in st.session_state:
+    st.session_state.evaluations = []
+
+# Employés
 if menu == "👥 Employés":
     st.subheader("Ajouter un employé")
     with st.form("add_employee"):
@@ -45,7 +50,6 @@ if menu == "👥 Employés":
                 "Nom": nom, "Rôle": role, "Contrat": contrat, "Dispo": dispo
             })
             st.success(f"{nom} ajouté ✅")
-
     st.divider()
     st.subheader("Liste des employés")
     if st.session_state.employees:
@@ -53,7 +57,7 @@ if menu == "👥 Employés":
     else:
         st.info("Aucun employé ajouté.")
 
-# PAGE 2 : Planning
+# Planning
 elif menu == "📅 Planning":
     st.subheader("Planning Hebdomadaire")
     jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
@@ -70,7 +74,7 @@ elif menu == "📅 Planning":
         st.session_state.planning = planning
         st.success("Planning sauvegardé.")
 
-# PAGE 3 : Pointage
+# Pointage
 elif menu == "⏱️ Pointage":
     st.subheader("Pointage des employés")
     if not st.session_state.employees:
@@ -84,7 +88,6 @@ elif menu == "⏱️ Pointage":
                 "Employé": employe, "Action": action, "Heure": now
             })
             st.success(f"{action} enregistrée pour {employe} à {now}.")
-
     st.divider()
     st.subheader("Historique des pointages")
     if st.session_state.pointages:
@@ -92,7 +95,7 @@ elif menu == "⏱️ Pointage":
     else:
         st.info("Aucun pointage enregistré.")
 
-# PAGE 4 : Tableau de bord
+# Tableau de bord
 elif menu == "📊 Tableau de bord":
     st.subheader("Statistiques RH")
     col1, col2 = st.columns(2)
@@ -103,7 +106,48 @@ elif menu == "📊 Tableau de bord":
         df = pd.DataFrame(st.session_state.pointages)
         st.download_button("⬇️ Exporter les pointages (.csv)", df.to_csv(index=False), "pointages.csv", "text/csv")
 
-# PAGE 5 : Assistant RH (ChatGPT)
+# Congés
+elif menu == "📆 Congés":
+    st.subheader("Demandes de congés")
+    employe = st.selectbox("Employé concerné", [e["Nom"] for e in st.session_state.employees])
+    date_debut = st.date_input("Date de début")
+    date_fin = st.date_input("Date de fin")
+    if st.button("📩 Demander un congé"):
+        st.session_state.conges.append({
+            "Employé": employe,
+            "Du": date_debut.strftime("%Y-%m-%d"),
+            "Au": date_fin.strftime("%Y-%m-%d")
+        })
+        st.success("Demande enregistrée ✅")
+    st.divider()
+    st.subheader("Historique des congés")
+    if st.session_state.conges:
+        st.dataframe(pd.DataFrame(st.session_state.conges), use_container_width=True)
+    else:
+        st.info("Aucune demande enregistrée.")
+
+# Évaluations
+elif menu == "🎯 Évaluations":
+    st.subheader("Évaluation des employés")
+    employe = st.selectbox("👤 Choisir un employé", [e["Nom"] for e in st.session_state.employees])
+    note = st.slider("Note générale", 1, 10, 5)
+    commentaire = st.text_area("Commentaires")
+    if st.button("✅ Enregistrer l’évaluation"):
+        st.session_state.evaluations.append({
+            "Employé": employe,
+            "Note": note,
+            "Commentaire": commentaire,
+            "Date": datetime.now().strftime("%Y-%m-%d")
+        })
+        st.success("Évaluation enregistrée")
+    st.divider()
+    st.subheader("Historique des évaluations")
+    if st.session_state.evaluations:
+        st.dataframe(pd.DataFrame(st.session_state.evaluations), use_container_width=True)
+    else:
+        st.info("Aucune évaluation disponible.")
+
+# ChatGPT
 elif menu == "🧠 Assistant RH (ChatGPT)":
     st.subheader("🤖 Assistant RH intelligent")
     st.markdown("Pose une question liée à ton équipe, ton planning ou tes RH 👇")
